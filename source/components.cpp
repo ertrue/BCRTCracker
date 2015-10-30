@@ -23,6 +23,7 @@ gamblerSim::gamblerSim(int _deckCnt, GameSetting setting)
 
 void gamblerSim::initiateNewGame()
 {
+   pP = bP = tP = pPairP = bPairP = 0.0;
    tieExpectedGain = playerExpectedGain = bankerExpectedGain = bankerPairExpectedGain = playerPairExpectedGain = 0.0;
    cardBench.clear();
    unknownCards.clear();
@@ -56,7 +57,7 @@ void gamblerSim::seeCard(card const c)
    assert(0);
 }
 
-void gamblerSim::calculateCurrentWinningPercentage()
+void gamblerSim::calculateCurrentWinningPercentage(bool isAnalytical)
 {
    cardBench.assign(unknownCards.begin(), unknownCards.end());
    float tie = 0;
@@ -64,20 +65,25 @@ void gamblerSim::calculateCurrentWinningPercentage()
    float banker = 0;
    int cardIndex = 0;
    
-   std::srand(unsigned (std::time(0)));
+   if (!isAnalytical) {
+      std::srand(unsigned (std::time(0)));
 
-   Record totalRecord;
+      Record totalRecord;
 
-   for (int i = 0; i < gameRounds; ++i) {
-      auto it = cardBench.begin();
-      shuffleFirstSixCards(cardBench.begin(), cardBench.end());
-      totalRecord += playCurrentHand(it);
+      for (int i = 0; i < gameRounds; ++i) {
+         auto it = cardBench.begin();
+         shuffleFirstSixCards(cardBench.begin(), cardBench.end());
+         totalRecord += playCurrentHand(it);
+      }
+      pP = totalRecord.playerRatio();
+      bP = totalRecord.bankerRatio();
+      tP = totalRecord.tieRatio();
+      pPairP = totalRecord.playerPairRatio();
+      bPairP = totalRecord.bankerPairRatio();
+   } else {
+      pP = bP = tP = 0;
+      pPairP = bPairP = getCurrentPairRatio();
    }
-   pP = totalRecord.playerRatio();
-   bP = totalRecord.bankerRatio();
-   tP = totalRecord.tieRatio();
-   pPairP = totalRecord.playerPairRatio();
-   bPairP = totalRecord.bankerPairRatio();
 }
 
 int gamblerSim::makeTieBet()
@@ -130,7 +136,9 @@ int gamblerSim::makeBankerBet()
 int gamblerSim::makePlayerPairBet()
 {
    int bet = 0;
+   
    playerPairExpectedGain = pPairP * PLAYER_PAIR_GAIN - 1 + pPairP;
+   
    if (playerPairExpectedGain > THRESHOLD) bet = bet_one_hand;
 #ifdef DEBUG_CARD
    if (bet) {
@@ -146,7 +154,9 @@ int gamblerSim::makePlayerPairBet()
 int gamblerSim::makeBankerPairBet()
 {
    int bet = 0;
+
    bankerPairExpectedGain = bPairP * BANKER_PAIR_GAIN - 1 + bPairP;
+
    if (bankerPairExpectedGain > THRESHOLD) bet = bet_one_hand;
 #ifdef DEBUG_CARD
    if (bet) {
@@ -173,6 +183,20 @@ int gamblerSim::makeBankerBonusBet()
 //   if (bBonusP > BANKER_BONUS_THREHOLD) bet = bet_one_hand;
       
    return placeBet(bet);
+}
+
+float gamblerSim::getCurrentPairRatio()
+{
+   std::vector<int> hist(13, 0);
+   for (auto &c: unknownCards) {hist[c.number+1]++;}
+   int total = unknownCards.size();
+   
+   int pairCnt = 0;
+   for (auto cnt: hist) {
+      if (cnt <=1 ) continue;
+      pairCnt += cnt*(cnt-1);
+   }
+   return (float)pairCnt/(total)/(total-1);
 }
 
 void gamblerSim::makeMinimumBet(int &t, int &p, int &b, int &pp, int &bp)
@@ -312,7 +336,7 @@ void analyzer::play(int deckCnt, int totalRun)
       gambler.initiateNewGame();
       gambler.seeCard(_bs.initiateNewGame());
       while (!_bs.endGame() && gambler.money()>0) {
-         gambler.calculateCurrentWinningPercentage();
+         gambler.calculateCurrentWinningPercentage(gameSetting.isAnalytical());
 
          int before = gambler.money();
         
@@ -430,7 +454,7 @@ void GameSetting::outputTemplate(std::string settingtemplate) const
    fprintf(fp, "%s: xxxx\n", initMoneyName.c_str());
    fprintf(fp, "%s: xxxx\n", maxHandName.c_str());
    fprintf(fp, "%s: xxxx\n", minHandName.c_str());
-   fprintf(fp, "%s: [100~100k]\n", testPerBetName.c_str());
+   fprintf(fp, "%s: [0 or 100~100k]\n", testPerBetName.c_str());
    fprintf(fp, "%s: [0 ~ 0.1]\n", betBigThresholdName.c_str());
    fclose(fp);
 }
@@ -481,10 +505,10 @@ void GameSetting::setupDefault()
 {
    resCardsPortion = 0.2;
    initMoney = 1e6;
-   maxHand = 1e3;
+   maxHand = 2e4;
    minHand = 20;
-   testRound = 1e4;
-   threshold = 0.02;
+   testRound = 0;
+   threshold = 0.05;
 }
 
 bool GameSetting::checkValid() const
@@ -493,6 +517,6 @@ bool GameSetting::checkValid() const
          && (minHand >= 0)
          && (maxHand >= minHand)
          && (initMoney >= maxHand)
-         && (testRound >= 1e2 && testRound <= 1e5)
+         && (testRound == 0 || (testRound >= 1e2 && testRound <= 1e5))
          && (threshold >= 0.0 && threshold <= 0.1) );
 }

@@ -74,7 +74,6 @@ struct GameSetting
    int minHand;
    int testRound;
    float threshold;
-
 private:
    std::string const resCardPerGameName;
    std::string const initMoneyName;
@@ -97,6 +96,7 @@ public:
    void reportError() const;
    void setupDefault();
    bool checkValid() const;
+   bool isAnalytical() const {return !testRound;}
    void output(FILE *fp) const {
       fprintf(fp, "#### Game Setting ####\n");
       fprintf(fp, "#%s: %.2f\n", resCardPerGameName.c_str(), resCardsPortion);
@@ -148,8 +148,9 @@ public:
    void seeCard(card const c);
    int  placeBet(int bet);   
    void gainProfit(int income);
-   
-   void calculateCurrentWinningPercentage();
+  
+   float getCurrentPairRatio();
+   void calculateCurrentWinningPercentage(bool isAnalytical);
 
    int makeTieBet();
    int makePlayerBet();
