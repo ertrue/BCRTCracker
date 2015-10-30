@@ -1,0 +1,6 @@
+ReservedCardPortionPerGame: 0.20
+InitialMoney: 1000000
+BetOnMaxHand: 1000
+BetOnMinHand: 20
+TestRoundsPerBet: 10000
+BetBigThreshold: 0.020

@@ -1,0 +1,6 @@
+ReservedCardPortionPerGame: [0.1 ~ 0.4]
+InitialMoney: xxxx
+BetOnMaxHand: xxxx
+BetOnMinHand: xxxx
+TestRoundsPerBet: [100~100k]
+BetBigThreshold: [0 ~ 0.1]
