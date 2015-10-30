@@ -5,11 +5,11 @@
 #include<iostream>
 #include<math.h>
 
-#define _DEALER_   'd'
+#define _BANKER_   'b'
 #define _PLAYER_   'p'
 #define _TIE_      't'
 #define _N_TIE_    'T'
-#define _N_DEALER_ 'D'
+#define _N_BANKER_ 'B'
 #define _N_PLAYER_ 'P'
 
 #define DEFAULT_DECK_CNT 8
@@ -22,97 +22,30 @@ void outputUsageHelp()
 //   std::cout<<"\tcmd input_foramt output_analysis"<<std::endl;
 }
 
-void getPercentageofSimWithCurrentCardBench(float & _t, float & _p, float & _d, 
-      std::vector<card> & cardBench)
-{
-   int totalRunTimes = 1e6;
-   baracSimBasic _basicSim(cardBench, totalRunTimes);
-   _basicSim.run();
-   _t = _basicSim.tiePercentage();
-   _p = _basicSim.playerPercentage();
-   _d = _basicSim.dealerPercentage();
-}
-
-struct baracSimBasic {
-   std::vector<card> cards;
-   int totalRunTimes;
-
-   int tieCnt;
-   int dealerCnt;
-   int playerCnt;
-public:
-   baracSimBasic(std::vector<card> const & _cards, int const runTimes):cards(_cards),totalRunTimes(runTimes),tieCnt(0),dealerCnt(0),playerCnt(0) {}
-   char processOneHand();
-   void run();
-   float tiePercentage() const {return (float)tieCnt/totalRunTimes;}
-   float playerPercentage() const {return (float)playerCnt/totalRunTimes;}
-   float dealerPercentage() const {return (float)dealerCnt/totalRunTimes;}
-
-private:
-   char checkWinner(int const dealer, int const player);
-   void shuffle();
-   static int myrandom(int i) {return std::rand()%i;}
+struct card{
+   int number;
+   char suit;
+   int operator+(card const & right) {return this->number+right.number;}
+   card(int _n, char _s):number(_n), suit(_s){}
+   card():number(0), suit(0){}
+   int point(){return (number>=10)?0:number;}
+   char numberchar() const { return (number>9)?(number-10+'A'):(number+'0');}
 };
 
-char baracSimBasic::checkWinner(int const dealer, int const player)
-{
-   if (dealer == player) return _TIE_;
-   else if (dealer > player) return _DEALER_;
-   else return _PLAYER_;
-}
-
-void baracSimBasic::run()
-{
-   for (int i = 0; i<totalRunTimes; ++i) {
-      shuffle();
-      char res = processOneHand();
-      if (res == _DEALER_ || res == _N_DEALER_) dealerCnt++;
-      if (res == _PLAYER_ || res == _N_PLAYER_) playerCnt++;
-      if (res == _TIE_    || res == _N_TIE_)    tieCnt++;
+struct record {
+   short unsigned int d;
+   short unsigned int p;
+   short unsigned int t;
+   short unsigned int D_;
+   short unsigned int P_;
+   short unsigned int T_;
+   std::string history;
+   std::string cardslist;
+public:
+   record() {
+      d=p=t=D_=P_=T_=0;
    }
-}
-
-char processOneHand(std::vector<cards> & cards, int & cardIndex)
-{
-   // according to wikipedia Chinese version
-   int dealer = 0;
-   int player = 0;
-   player = (player+cards[cardIndex++].point())%10;
-   dealer = (dealer+cards[cardIndex++].point())%10;
-   player = (player+cards[cardIndex++].point())%10;
-   dealer = (dealer+cards[cardIndex++].point())%10;
-   if (dealer >= 8 && player >= 8) { // Natural Win;
-      return _N_TIE_;
-   } 
-   else if (dealer >= 8) {
-      return _N_DEALER_;
-   }
-   else if (player >= 8) {
-      return _N_PLAYER_;
-   } 
-   else { 
-      // player make decision first and then dealer make the following decision
-      card playerCard;
-      bool isPlayerFill = false;
-      if (player <= 5) {
-         playerCard = cards[cardIndex++];
-         player = (player+playerCard.point())%10;
-         isPlayerFill = true;
-      }
-      if (  (dealer <= 2) 
-            || (dealer == 3 && (!isPlayerFill || playerCard.point()!= 8))
-            || (dealer == 4 && (!isPlayerFill || (playerCard.point()>=2 && playerCard.point()<=7)))
-            || (dealer == 5 && (!isPlayerFill || (playerCard.point()>=4 && playerCard.point()<=7)))
-            || (dealer == 6 && isPlayerFill && playerCard.point()>=6 && playerCard.point()<=7)) 
-      {
-         dealer = (dealer+cards[cardIndex++].point())%10;
-      }
-      // check winner
-      if (dealer == player) return _TIE_;
-      else if (dealer > player) return _DEALER_;
-      else return _PLAYER_;
-   } 
-}
+};
 
 struct baracSim {
    int deckCnt;
@@ -121,7 +54,7 @@ struct baracSim {
    int cardIndex;
    static int const cardNumPerCnt = 52;
    static float const reservedPotion = 0.8;
-   std::vector<char> records; // _DEALER_: dealer win, _TIE_: tie, _PLAYER_: player win;
+   std::vector<char> records; // _BANKER_: banker win, _TIE_: tie, _PLAYER_: player win;
 
    int endIndex;
 
@@ -131,7 +64,7 @@ public:
    void processSim();
    void output(std::string output);
    void clearRecord();
-   gameRecord currRecord();
+   record currRecord();
 
 public: // initialization
    baracSim():cardIndex(0),deckCnt(0),endIndex(0){}
@@ -145,7 +78,7 @@ public: // initialization
    }
 
 private:
-   char checkWinner(int const dealer, int const player);
+   char checkWinner(int const banker, int const player, bool isNatural=false);
    void shuffle();
    void cut(int cutPos);
    void jumpStart();
@@ -155,26 +88,29 @@ private:
    static int myrandom (int i) { return std::rand()%i;}
 };
 
-gameRecord baracSim::currRecord()
+record baracSim::currRecord()
 {
-   gameRecord res;
+   record res;
    for (auto it = records.begin(); it != records.end(); ++it) {
-      if (*it == _DEALER_ || *it == _N_DEALER_) res.d++;
+      if (*it == _BANKER_ || *it == _N_BANKER_) res.d++;
       if (*it == _PLAYER_ || *it == _N_PLAYER_) res.p++;
       if (*it == _TIE_    || *it == _N_TIE_)    res.t++;
-      if (*it == _N_DEALER_) res.D_++;
+      if (*it == _N_BANKER_) res.D_++;
       if (*it == _N_PLAYER_) res.P_++;
       if (*it == _N_TIE_)    res.T_++;
       res.history += *it;
    }
+   for (auto c: cards) {
+      res.cardslist += c.numberchar();
+   }
    return res;
 }
 
-char baracSim::checkWinner(int const dealer, int const player)
+char baracSim::checkWinner(int const banker, int const player, bool isNatural)
 {
-   if (dealer == player) return _TIE_;
-   else if (dealer > player) return _DEALER_;
-   else return _PLAYER_;
+   if (banker == player) return (isNatural)?_N_TIE_:_TIE_;
+   else if (banker > player) return (isNatural)?_N_BANKER_:_BANKER_;
+   else return (isNatural)?_N_PLAYER_:_PLAYER_;
 }
 
 void baracSim::shuffle()
@@ -220,17 +156,23 @@ void baracSim::output(std::string output)
    size_t size = ftell(fp);
    if (size==0) {
       fprintf(fp, "##### new game starts #####\n");
-      fprintf(fp, "dealer\tplayer\ttie\tdetailedhistory\n");
+      fprintf(fp, "banker\tplayer\ttie\tdetailedhistory\tcards\n");
    }
-   int cntDealer=0, cntPlayer=0, cntTie=0;
+   int cntBanker=0, cntPlayer=0, cntTie=0;
    for (auto it = records.begin(); it != records.end(); ++it) {
-      if      (*it == _DEALER_ || *it == _N_DEALER_) cntDealer++;
+      if      (*it == _BANKER_ || *it == _N_BANKER_) cntBanker++;
       else if (*it == _PLAYER_ || *it == _N_PLAYER_) cntPlayer++;
       else if (*it == _TIE_    || *it == _N_TIE_)    cntTie++;
    }
-   fprintf(fp, "%d\t%d\t%d\t", cntDealer, cntPlayer, cntTie);
+   fprintf(fp, "%d\t%d\t%d\t", cntBanker, cntPlayer, cntTie);
+   // win log history
    for (auto it = records.begin(); it != records.end(); ++it) {
       fprintf(fp, "%c", *it);
+   }
+
+   // card shuffle-cut result
+   for (auto c:cards) {
+      fprintf(fp, "%X", c.number);
    }
    fprintf(fp, "\n");
    fclose(fp);
@@ -240,31 +182,18 @@ void baracSim::output(std::string output)
 void baracSim::processSim()
 {
    while (!endGame()) {
-      int pastIndex = cardIndex;
-      char res = processOneHand(cards, cardIndex);
-      records.push_back(res);
-      for (int i = pastIndex; i < cardIndex; ++i) {
-         gamer.seeCard(cards[i]);
-      }:e
-
-/*      // according to wikipedia Chinese version
-      int dealer = 0;
+      // according to wikipedia Chinese version
+      int banker = 0;
       int player = 0;
       player = (player+cards[cardIndex++].point())%10;
-      dealer = (dealer+cards[cardIndex++].point())%10;
+      banker = (banker+cards[cardIndex++].point())%10;
       player = (player+cards[cardIndex++].point())%10;
-      dealer = (dealer+cards[cardIndex++].point())%10;
-      if (dealer >= 8 && player >= 8) { // Natural Win;
-         records.push_back(_N_TIE_);
-      } 
-      else if (dealer >= 8) {
-         records.push_back(_N_DEALER_);
-      }
-      else if (player >= 8) {
-         records.push_back(_N_PLAYER_);
+      banker = (banker+cards[cardIndex++].point())%10;
+      if (banker >= 8 || player >= 8) { // Natural Win;
+         records.push_back(checkWinner(banker, player, true));
       } 
       else { 
-         // player make decision first and then dealer make the following decision
+         // player make decision first and then banker make the following decision
          card playerCard;
          bool isPlayerFill = false;
          if (player <= 5) {
@@ -272,18 +201,17 @@ void baracSim::processSim()
             player = (player+playerCard.point())%10;
             isPlayerFill = true;
          }
-         if (  (dealer <= 2) 
-            || (dealer == 3 && (!isPlayerFill || playerCard.point()!= 8))
-            || (dealer == 4 && (!isPlayerFill || (playerCard.point()>=2 && playerCard.point()<=7)))
-            || (dealer == 5 && (!isPlayerFill || (playerCard.point()>=4 && playerCard.point()<=7)))
-            || (dealer == 6 && isPlayerFill && playerCard.point()>=6 && playerCard.point()<=7)) 
+         if (  (banker <= 2) 
+            || (banker == 3 && (!isPlayerFill || playerCard.point()!= 8))
+            || (banker == 4 && (!isPlayerFill || (playerCard.point()>=2 && playerCard.point()<=7)))
+            || (banker == 5 && (!isPlayerFill || (playerCard.point()>=4 && playerCard.point()<=7)))
+            || (banker == 6 && isPlayerFill && playerCard.point()>=6 && playerCard.point()<=7)) 
          {
-               dealer = (dealer+cards[cardIndex++].point())%10;
+               banker = (banker+cards[cardIndex++].point())%10;
          }
 
-         records.push_back(checkWinner(dealer, player));
+         records.push_back(checkWinner(banker, player));
       }
-*/
    }
 }
 
@@ -306,7 +234,7 @@ bool baracSim::endGame()
    return (cardIndex >= endIndex);
 }
 
-void analyzeRecords(std::vector<gameRecord> const & records, int const deckCnt, std::string const outputfile)
+void analyzeRecords(std::vector<record> const & records, int const deckCnt, std::string const outputfile)
 {
    // average
    // std_dev
@@ -340,7 +268,7 @@ void analyzeRecords(std::vector<gameRecord> const & records, int const deckCnt, 
    fprintf(fp, "##### statistic data here: %d Decks per round ######\n", deckCnt);
    fprintf(fp, "total play:%llu @ round: %lu\n", d+p+t, records.size());
    fprintf(fp, "average bets per round:%lf\n", double(d+p+t)/records.size());
-   fprintf(fp, "percentage of dealer: %lf%%\n", double(d)/double(d+p+t)*100);
+   fprintf(fp, "percentage of banker: %lf%%\n", double(d)/double(d+p+t)*100);
    fprintf(fp, "percentage of player: %lf%%\n", double(p)/double(d+p+t)*100);
    fprintf(fp, "percentage of tie: %lf%%\n", double(t)/double(d+p+t)*100);
    fprintf(fp, "frequency\t Count\n");
@@ -352,13 +280,13 @@ void analyzeRecords(std::vector<gameRecord> const & records, int const deckCnt, 
    return;
 }
 
-void outputRecords(std::vector<gameRecord> const & records, std::string const outputfile)
+void outputRecords(std::vector<record> const & records, std::string const outputfile)
 {
    FILE *fp = fopen(outputfile.c_str(), "w");
    fprintf(fp, "##### new game starts #####\n");
-   fprintf(fp, "dealer\tplayer\ttie\t_Dealer\t_Player\t_Tie\tdetailedhistory\n");
+   fprintf(fp, "banker\tplayer\ttie\t_Banker\t_Player\t_Tie\tdetailedhistory\tcardslist\n");
    for (auto it = records.begin(); it != records.end(); ++it) {
-      fprintf(fp, "%d\t%d\t%d\t%d\t%d\t%d\t%s\n", it->d, it->p, it->t, it->D_, it->P_, it->T_, it->history.c_str());
+      fprintf(fp, "%d\t%d\t%d\t%d\t%d\t%d\t%s\t%s\n", it->d, it->p, it->t, it->D_, it->P_, it->T_, it->history.c_str(), it->cardslist.c_str());
    }
    fclose(fp);
 }
@@ -380,7 +308,7 @@ int main(int argc, char ** argv)
 
    // skip _bs.loadRule() for now...
 
-   std::vector<gameRecord> records;
+   std::vector<record> records;
 
    for (int i = 0; i < roundTotalCnt; i++) {
       _bs.initiateNewGame();
@@ -395,6 +323,6 @@ int main(int argc, char ** argv)
       std::cout<<"Outputing detailed log..."<<std::endl;
       outputRecords(records, outputfile+".cvs");
    }
-
+   
    return 0;
 }

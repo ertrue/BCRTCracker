@@ -16,5 +16,8 @@ main.o: main.cpp components.h
 components.o: components.cpp components.h
 	$(CC) $(CCFLAGS) -c components.cpp
 
+sim:
+	$(CXX) $(CXXFLAGS) -o bcrtsim gamer.cpp -lstdc++
+
 clean:
-	rm -rf main.o components.o bcrtcracker
+	rm -rf main.o components.o bcrtcracker bcrtsim
