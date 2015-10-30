@@ -15,7 +15,7 @@ void outputUsageHelp(char * cmdName)
 std::string getGameSettingTemplate(int argc, char ** argv) {
    std::string res;
    for (int i = 1; i < argc-1; ++i) {
-      if (strcmp(argv[i], "-R") == 0) {
+      if (strcmp(argv[i], "-T") == 0) {
          res = std::string(argv[i+1]);
       }
    }
