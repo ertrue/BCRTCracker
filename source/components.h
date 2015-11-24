@@ -21,12 +21,21 @@
 
 #define CARD_NUMBER_PER_DECK 52
 
-// winner gameSetting:
-#define TIE_GAIN 8
-#define PLAYER_GAIN 1
-#define BANKER_GAIN 0.95
-#define PLAYER_PAIR_GAIN 12
-#define BANKER_PAIR_GAIN 12
+// // winner gameSetting:
+// #define TIE_GAIN 8
+// #define PLAYER_GAIN 1
+// #define BANKER_GAIN 0.950
+// #define PLAYER_PAIR_GAIN 12
+// #define BANKER_PAIR_GAIN 12
+ 
+
+#define RATIO_BET(p1,p2,b) {((p1)*(b)-(p2))/(b)/((p1)+(p2))}
+
+extern double TIE_GAIN;
+extern double PLAYER_GAIN;
+extern double BANKER_GAIN;
+extern double PLAYER_PAIR_GAIN;
+extern double BANKER_PAIR_GAIN;
  
 
 // card defintion
@@ -81,6 +90,11 @@ private:
    std::string const minHandName;
    std::string const testPerBetName;
    std::string const betBigThresholdName;
+   std::string const tieGainName;
+   std::string const playerGainName;
+   std::string const bankerGainName;
+   std::string const playerPairGainName;
+   std::string const bankerPairGainName;
 
 public:
    GameSetting():
@@ -90,6 +104,11 @@ public:
       , minHandName("BetOnMinHand")
       , testPerBetName("TestRoundsPerBet")
       , betBigThresholdName("BetBigThreshold")
+      , tieGainName("TIEGAIN")
+      , playerGainName("PLAYERGAIN")
+      , bankerGainName("BANKERGAIN")
+      , playerPairGainName("PLAYERPAIRGAIN")
+      , bankerPairGainName("BANKERPAIRGAIN")
    { setupDefault(); }
    void outputTemplate(std::string settingTemplate) const;
    bool load(std::string gameSettingfile="");
@@ -105,6 +124,11 @@ public:
       fprintf(fp, "#%s: %d\n", minHandName.c_str(), minHand);
       fprintf(fp, "#%s: %d\n", testPerBetName.c_str(), testRound);
       fprintf(fp, "#%s: %.3f\n", betBigThresholdName.c_str(), threshold);
+      fprintf(fp, "#%s: %.3f\n", tieGainName.c_str(), TIE_GAIN);
+      fprintf(fp, "#%s: %.3f\n", playerGainName.c_str(), PLAYER_GAIN);
+      fprintf(fp, "#%s: %.3f\n", bankerGainName.c_str(), BANKER_GAIN);
+      fprintf(fp, "#%s: %.3f\n", playerPairGainName.c_str(), PLAYER_PAIR_GAIN);
+      fprintf(fp, "#%s: %.3f\n", bankerPairGainName.c_str(), BANKER_PAIR_GAIN);
    }
 };
 
@@ -126,8 +150,7 @@ private:
    std::vector<card> cardBench;
    std::list<card> unknownCards;
    int deckCnt;
-
-private:
+public:
    float pP;
    float bP;
    float tP;
@@ -135,7 +158,8 @@ private:
    float bPairP;
 //   float pBonusP;
 //   float bBonusP;
-  
+
+private:
    float tieExpectedGain;
    float playerExpectedGain;
    float bankerExpectedGain;
@@ -212,6 +236,14 @@ struct analyzer
    bool iswipedout;
 
    GameSetting gameSetting;
+   
+// std::vector<std::string> bRecords;
+// std::vector<std::string> pRecords;
+// std::vector<std::string> tRecords;
+// std::vector<std::string> pPRecord;
+// std::vector<std::string> bPRecord;
+// std::vector<std::string> wRecords;
+// std::vector<std::string> pairRecords;
 
 public:
    analyzer():iswipedout(false){}
@@ -224,7 +256,11 @@ public:
       moneylog.clear();
    }
    void play(int deckCnt, int totalRun);
+   void simDetailed(int deckCnt, int totalRun, std::string const & output);
+   double betOnStaticRatio(double const ratio, bool const isBanker, Record const & res);
+   double betOnDynamicRatio(gamblerSim const & gs, Record const & res);
    bool outputCVS(std::string const & filename);
+//   bool outputDetailedReport(std::string const & filename); 
    void outputTemplate(std::string file) const {gameSetting.outputTemplate(file);}
    bool loadSetting(std::string file) {return gameSetting.load(file);}
    void outputSetting() {gameSetting.output(stdout);}

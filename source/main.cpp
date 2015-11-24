@@ -6,6 +6,7 @@ void outputUsageHelp(char * cmdName)
 {
    fprintf(stderr, "Usage: %s outputfile [-g game_number] [-d deck_cnt] [-s gameSetting_file]\n", cmdName);
    fprintf(stderr, "Other uages:\n");
+   fprintf(stderr, "    -detail outputfile:\n\tOutput the detailed report of percentage of banker/player/tie/pair per run.\n");
    fprintf(stderr, "    -D:\n\tOutput current default game settingfile.\n");
    fprintf(stderr, "    -T game_setting_file_template:\n\tOutput gameSettingfile_template. User should fill the gameSetting_file template if default game setting file is not preferred. Delete the line if user does not know what to put or just want to use default setting.\n");
 //   std::cout<<"\tdefine the game setting in the format file"<<std::endl;
@@ -56,6 +57,17 @@ bool outputDefaultSetting(int argc, char ** argv)
    return false;
 }
 
+std::string outputDetailedPercentageReport(int argc, char ** argv) {
+
+   std::string filename;
+   if (argc != 2) {
+      if (strcmp(argv[1], "-detail") == 0) {
+         return argv[2];
+      }
+   }
+   return filename;
+}
+
 std::string getGameSettingFile(int argc, char ** argv)
 {
    std::string res;
@@ -99,6 +111,7 @@ int main(int argc, char ** argv)
    std::string gameSettingtemplate = getGameSettingTemplate(argc, argv);
    bool isoutputdefaultsetting = outputDefaultSetting(argc, argv);
 
+   std::string percentageDetailedReport = outputDetailedPercentageReport(argc, argv);
 //   int deckCnt = (argc==4)?atoi(argv[2]):DEFAULT_DECK_CNT;
 
    analyzer _analyzer;
@@ -120,6 +133,10 @@ int main(int argc, char ** argv)
  
    printf("total round %d simulating...\n", roundTotalCnt);
    _analyzer.outputSetting();
-   _analyzer.play(deckCnt, roundTotalCnt);
-   return _analyzer.outputCVS(outputfile);
+   if (percentageDetailedReport.size()) {
+      _analyzer.simDetailed(deckCnt, roundTotalCnt, percentageDetailedReport);
+   } else {
+      _analyzer.play(deckCnt, roundTotalCnt);
+      return _analyzer.outputCVS(outputfile);
+   }
 }
