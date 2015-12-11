@@ -4,6 +4,8 @@
 #include<stdlib.h>
 #include<iostream>
 #include<math.h>
+#include<fstream>
+#include "BCRTForm.h"
 
 #define _BANKER_   'b'
 #define _PLAYER_   'p'
@@ -291,6 +293,25 @@ void outputRecords(std::vector<record> const & records, std::string const output
    fclose(fp);
 }
 
+bool isExist(std::string const name)
+{
+   std::fstream ifile(name.c_str(), std::fstream::in);
+   return ifile;
+}
+
+std::string getLogFileName(char const * filename, bool isIncremental)
+{
+   if (!isIncremental) return string(filename);
+
+   int cnt = 0;
+   std::string name;
+   while (1) {
+      name = std::string(filename) + "_" + std::to_string(cnt++);
+      if (!isExist(name.c_str())) break;
+   }
+   return name;
+}
+
 int main(int argc, char ** argv)
 {
    if (argc != 4 && argc != 3) {
@@ -299,7 +320,7 @@ int main(int argc, char ** argv)
    }
 
    int roundTotalCnt = atoi(argv[1]);
-   std::string outputfile = std::string(argv[argc-1]);
+   std::string outputfile = getLogFileName(argv[argc-1], false);
    int deckCnt = (argc==4)?atoi(argv[2]):DEFAULT_DECK_CNT;
    
    printf("total round %d simulating...\n", roundTotalCnt);
@@ -307,9 +328,35 @@ int main(int argc, char ** argv)
    baracSim _bs(deckCnt); // use DEFAULT_DECK_CNT decks for playing. Default
 
    // skip _bs.loadRule() for now...
+#if 1
+   size_t bankerCnt = 0;
+   size_t playerCnt = 0;
+   size_t tieCnt = 0;
+   FILE *fp = fopen(outputfile.c_str(), "w");
+   fprintf(fp, "detailedhistory\tcardslist\n");
+   
+   BCRTForm formcreater;
 
+   for (int i = 0; i < roundTotalCnt; i++) {
+      _bs.initiateNewGame();
+      _bs.processSim();
+      record curRecord = _bs.currRecord();
+      fprintf(fp, "%s\t%s\n", curRecord.history.c_str(), curRecord.cardslist.c_str());
+      formcreater.readHistory(curRecord.history);
+      formcreater.drawOnPNG(1920, 1080, outputfile+"_"+std::to_string(i)+".png");
+
+      bankerCnt += curRecord.d;
+      playerCnt += curRecord.p;
+      tieCnt += curRecord.t;
+      _bs.clearRecord();
+   }
+   fclose(fp);
+   printf("Banker Win %lu, Player Win %lu, Tie %lu\n", bankerCnt, playerCnt, tieCnt);
+   unsigned long long total = bankerCnt+playerCnt+tieCnt;
+   printf("Banker Win %.4f%%, Player Win %.4f%%, Tie %.4f%%\n", 100.0*bankerCnt/total, 100.0*playerCnt/total, 100.0*tieCnt/total);
+   
+#else
    std::vector<record> records;
-
    for (int i = 0; i < roundTotalCnt; i++) {
       _bs.initiateNewGame();
       _bs.processSim();
@@ -323,6 +370,6 @@ int main(int argc, char ** argv)
       std::cout<<"Outputing detailed log..."<<std::endl;
       outputRecords(records, outputfile+".cvs");
    }
-   
+#endif
    return 0;
 }

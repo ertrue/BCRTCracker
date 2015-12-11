@@ -30,7 +30,12 @@ gamblerSim::gamblerSim(int _deckCnt, GameSetting setting)
 
 void gamblerSim::initiateNewGame()
 {
-   pP = bP = tP = pPairP = bPairP = 0.0;
+   pP = GENERAL_PERCENTAGE_PLAYER;
+   bP = GENERAL_PERCENTAGE_BANKER;
+   tP = GENERAL_PERCENTAGE_TIE;
+
+   pPairP = bPairP = 0.0;
+   
    tieExpectedGain = playerExpectedGain = bankerExpectedGain = bankerPairExpectedGain = playerPairExpectedGain = 0.0;
    cardBench.clear();
    unknownCards.clear();
@@ -331,13 +336,15 @@ bool baccaratSim::endGame()
 }
 
 
-double analyzer::betOnStaticRatio(double const ratio, bool const isBanker, Record const & res)
+double analyzer::betOnStaticRatio(double const ratio, gamblerSim const & gs, bool const isBanker, Record const & res)
 {
    double gain = 1;
    if (isBanker) {
+      if (gs.bP*BANKER_GAIN-gs.pP<=0) return gain;
       if (res.banker) gain += BANKER_GAIN*ratio;
       else if (res.player) gain -= ratio;
    } else {
+      if (gs.pP*PLAYER_GAIN-gs.bP<=0) return gain;
       if (res.player) gain += PLAYER_GAIN*ratio;
       else if (res.banker) gain -= ratio;
    }
@@ -369,7 +376,40 @@ double analyzer::betOnDynamicRatio(gamblerSim const & gs, Record const & res)
    return gain;
 }
 
-void analyzer::simDetailed(int deckCnt, int totalRun, std::string const & outfile)
+void analyzer::simInBrief(int deckCnt, int totalRun, std::string const & outfile)
+{
+   printf("output file is %s\n", outfile.c_str());
+
+   FILE * fp = fopen(outfile.c_str(), "w");
+   if (fp == NULL) return;
+
+   fprintf(fp, "Total_Gain\tGain_in_This_Round\n");
+
+   baccaratSim _bs(deckCnt, gameSetting);
+   gamblerSim gambler(deckCnt, gameSetting);
+   std::vector<card> usedCards;
+
+   totalGain = 1.0;
+   for (int i=0; i<totalRun; ++i) {
+      gambler.initiateNewGame();
+      gambler.seeCard(_bs.initiateNewGame());
+      double gain = 1.0;
+      while (!_bs.endGame()) {
+         Record record = _bs.playOneHand(usedCards);
+
+         gain *= betOnDynamicRatio(gambler, record);
+
+
+         for (auto it = usedCards.begin(); it != usedCards.end(); ++it)
+            gambler.seeCard(*it);
+      }
+      totalGain *= gain;
+      fprintf(fp, "%f\t%f\n", totalGain, gain);
+   }
+   fclose(fp);
+}
+
+void analyzer::simDetailed(int deckCnt, int totalRun, std::string const & outfile, bool isDynamic)
 {
    FILE * fp = fopen(outfile.c_str(), "w");
    if (fp == NULL) return;
@@ -380,6 +420,8 @@ void analyzer::simDetailed(int deckCnt, int totalRun, std::string const & outfil
 
    fprintf(fp, "\tdynamic_ratio");
    for (int i = 1; i<gain.size(); ++i) fprintf(fp, ";static%f", 5e-4*i);
+
+   fprintf(fp, "\ttheoery_gain");
    fprintf(fp, "\n");
 
    baccaratSim _bs(deckCnt, gameSetting);
@@ -387,7 +429,7 @@ void analyzer::simDetailed(int deckCnt, int totalRun, std::string const & outfil
    
    std::vector<card> usedCards;
    std::string bankerRecord, playerRecord, tieRecord, pPairRecord, bPairRecord, winRecord, pairRecord;
-   
+   totalGain = 1.0;
    for (int i=0; i<totalRun; ++i) {
       gambler.initiateNewGame();
       gambler.seeCard(_bs.initiateNewGame());
@@ -400,14 +442,19 @@ void analyzer::simDetailed(int deckCnt, int totalRun, std::string const & outfil
       pairRecord.clear();
       
       gain.assign(51, 1.0);
+      
+      double theoryGain = 1.0;
 
       while (!_bs.endGame() ) {
-         gambler.calculateCurrentWinningPercentage(gameSetting.isAnalytical());
-         bankerRecord += std::to_string(gambler.bP)+";";
-         playerRecord += std::to_string(gambler.pP)+";";
-         tieRecord += std::to_string(gambler.tP)+";";
-         pPairRecord += std::to_string(gambler.pPairP)+";";
-         bPairRecord += std::to_string(gambler.bPairP)+";";
+         if (isDynamic) {
+            gambler.calculateCurrentWinningPercentage(gameSetting.isAnalytical());
+            
+            bankerRecord += std::to_string(gambler.bP)+";";
+            playerRecord += std::to_string(gambler.pP)+";";
+            tieRecord += std::to_string(gambler.tP)+";";
+            pPairRecord += std::to_string(gambler.pPairP)+";";
+            bPairRecord += std::to_string(gambler.bPairP)+";";
+         }
 
          usedCards.clear();
          Record res = _bs.playOneHand(usedCards);
@@ -423,13 +470,17 @@ void analyzer::simDetailed(int deckCnt, int totalRun, std::string const & outfil
          gain[0] *= betOnDynamicRatio(gambler, res);
          
          for (int i = 1; i < gain.size(); ++i) {
-            gain[i] *= betOnStaticRatio(i*5e-4, true, res);
+            gain[i] *= betOnStaticRatio(i*5e-4, gambler, true, res);
          }
+         
+         theoryGain *= betOnStaticRatio(0.01362, gambler, true, res);
 
          for (auto it = usedCards.begin(); it != usedCards.end(); ++it)
             gambler.seeCard(*it);
       }
-      fprintf(fp, "%s\t%s\t%s\t%s\t%s\t%s\t%s", 
+      totalGain *= gain[0];
+
+      fprintf(fp, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t", 
             bankerRecord.c_str(),
             playerRecord.c_str(),
             tieRecord.c_str(),
@@ -437,10 +488,8 @@ void analyzer::simDetailed(int deckCnt, int totalRun, std::string const & outfil
             bPairRecord.c_str(),
             winRecord.c_str(),
             pairRecord.c_str());
-
-      fprintf(fp, "\t%f",gain[0]);
-      for (auto v: gain) fprintf(fp, ";%f", v);
-      fprintf(fp, "\n");
+      for (auto v: gain) fprintf(fp, "%f;", v);
+      fprintf(fp, "\t%f\n", theoryGain);
    }
          // calculate Gain
    fclose(fp);

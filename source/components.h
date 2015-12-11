@@ -27,7 +27,11 @@
 // #define BANKER_GAIN 0.950
 // #define PLAYER_PAIR_GAIN 12
 // #define BANKER_PAIR_GAIN 12
- 
+
+#define GENERAL_PERCENTAGE_BANKER 0.458596
+#define GENERAL_PERCENTAGE_PLAYER 0.446248
+#define GENERAL_PERCENTAGE_TIE    0.095156
+
 
 #define RATIO_BET(p1,p2,b) {((p1)*(b)-(p2))/(b)/((p1)+(p2))}
 
@@ -235,6 +239,8 @@ struct analyzer
    std::vector<int> moneylog;
    bool iswipedout;
 
+   double totalGain;
+
    GameSetting gameSetting;
    
 // std::vector<std::string> bRecords;
@@ -246,7 +252,7 @@ struct analyzer
 // std::vector<std::string> pairRecords;
 
 public:
-   analyzer():iswipedout(false){}
+   analyzer():iswipedout(false), totalGain(1.0){}
    void init() {
       profitlog.clear();
       betlog.clear();
@@ -254,10 +260,12 @@ public:
       gamelog.clear();
       pairlog.clear();
       moneylog.clear();
+      totalGain = 1.0;
    }
    void play(int deckCnt, int totalRun);
-   void simDetailed(int deckCnt, int totalRun, std::string const & output);
-   double betOnStaticRatio(double const ratio, bool const isBanker, Record const & res);
+   void simInBrief(int deckCnt, int totalRun, std::string const & outfile);
+   void simDetailed(int deckCnt, int totalRun, std::string const & output, bool isDynamic=true);
+   double betOnStaticRatio(double const ratio, gamblerSim const & gs, bool const isBanker, Record const & res);
    double betOnDynamicRatio(gamblerSim const & gs, Record const & res);
    bool outputCVS(std::string const & filename);
 //   bool outputDetailedReport(std::string const & filename); 
